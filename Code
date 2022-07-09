@@ -1,0 +1,160 @@
+#include "HUSKYLENS.h"
+#include "SoftwareSerial.h"
+
+HUSKYLENS huskylens;
+SoftwareSerial mySerial(2, 3); // RX, TX
+//HUSKYLENS green line >> Pin 10; blue line >> Pin 11
+void printResult(HUSKYLENSResult result);
+int var;
+
+# define Start_Byte 0x7E
+# define Version_Byte 0xFF
+# define Command_Length 0x06
+# define End_Byte 0xEF
+# define Acknowledge 0x00 //Returns info with command 0x41 [0x01: info, 0x00: no info]
+
+# define ACTIVATED LOW
+
+const int trigPin = 11;
+const int echoPin = 12;
+long duration;
+int distanceCm, distanceInch;
+
+//**********************************************************************************
+void setup() 
+  {
+    Serial.begin(9600);
+    mySerial.begin(9600);
+    pinMode(trigPin, OUTPUT);
+    pinMode(echoPin, INPUT);
+    delay(2000);
+    setVolume(25); delay(1000);
+    playcust(4);  delay(4000);
+    while (!huskylens.begin(mySerial))  { delay(100);  }
+}
+//**********************************************************************************
+void loop() 
+  {
+    if (!huskylens.request()) {}
+    else if(!huskylens.isLearned()) {}
+    else if(!huskylens.available()) {}
+    else
+    {
+      while (huskylens.available())
+        {
+         HUSKYLENSResult result = huskylens.read();
+         printResult(result);
+         var = result.ID;
+         //Serial.println(String() + F("Akash:") + var);
+        }    
+    }
+//-----------------------------------------------------------------------------------
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+    duration = pulseIn(echoPin, HIGH);
+    distanceCm= duration*0.034/2;
+    distanceInch = duration*0.0133/2;
+    //Serial.print("\tObject Dist = ");
+    //Serial.println(distanceInch);
+    
+    if(distanceInch <= 12 ) {  speech_3();  delay(4000);  }
+//-----------------------------------------------------------------------------------
+   if (var == 1) {  speech_1();   var = -1;  delay(4000); }
+   else if (var == 2) {  speech_2();  var = -1;  delay(4000); }
+   else if (var == 3) {  speech_2();  var = -1;  delay(4000); }
+   else if (var == 4) {  speech_3();  var = -1;  delay(4000); }
+   delay(500);
+}
+
+//**********************************************************************************
+void printResult(HUSKYLENSResult result)
+  {
+   if (result.command == COMMAND_RETURN_BLOCK)  
+    {
+     //Serial.println(String()+F(",ID=")+result.ID);
+    }
+    
+   else
+    {
+     //Serial.println("Object unknown!");
+    }
+  }
+//***********************************************************************************************************
+//***********************************************************************************************************
+  void speech_1()
+  { 
+   playcust(1);
+ }
+//___________________________________________________________
+  void speech_2()
+    { 
+     playcust(2);
+   }
+//___________________________________________________________
+   void speech_3()
+    { 
+     playcust(3);
+   }
+//___________________________________________________________
+   void speech_4()
+    { 
+     playcust(4);
+   } 
+//___________________________________________________________
+   void speech_5()
+    { 
+     playcust(5);
+   }        
+//********************************************************************************
+void pause()
+{
+  execute_CMD(0x0E,0,0);
+  delay(500);
+}
+//---------------------------------------------------
+void play()
+{
+  execute_CMD(0x0D,0,1); 
+  delay(500);
+}
+//---------------------------------------------------
+void playNext()
+{
+  execute_CMD(0x01,0,1);
+  delay(500);
+}
+//---------------------------------------------------
+void playPrevious()
+{
+  execute_CMD(0x02,0,1);
+  delay(500);
+}
+//---------------------------------------------------
+void playcust(int track)
+{
+  execute_CMD(0x03,0,track);
+  delay(500);
+}
+//---------------------------------------------------
+void setVolume(int volume)
+{
+  execute_CMD(0x06, 0, volume); // Set the volume (0x00~0x30)
+  delay(2000);
+}
+//*************************************************************************************************************************
+void execute_CMD(byte CMD, byte Par1, byte Par2)    // Excecute the command and parameters
+{
+  word checksum = -(Version_Byte + Command_Length + CMD + Acknowledge + Par1 + Par2); // Calculate the checksum (2 bytes)
+
+  byte Command_line[10] = { Start_Byte, Version_Byte, Command_Length, CMD, Acknowledge, // Build the command line
+  Par1, Par2, highByte(checksum), lowByte(checksum), End_Byte};
+
+  for (byte k=0; k<10; k++)   //Send the command line to the module
+    {
+      Serial.write( Command_line[k]);
+    }
+  }
+//*************************************************************************************************************************
